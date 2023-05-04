@@ -17,12 +17,15 @@ const db= mysql.createConnection({
     database: process.env.DB_NAME
 },
 
+
 console.log(`Connected to the business_db database`));
 db.connect(function (err) {
     if (err) throw err;
     afterConnection();
   });
   
+
+
 // function after connection is established and welcome image shows 
 afterConnection = () => {
   console.log("***********************************")
@@ -60,6 +63,20 @@ let promptUser= function() {
           if(Options === "View All Employees"){
             viewEmployees();
             console.log("this is working")
+          }
+
+          if(Options === "Add Department"){
+            addDepartment();
+            console.log("This works")
+          }
+
+          if(Options==="Add Role"){
+            addRole();
+            console.log("this is working")
+          }
+
+          if(Options === "Add Employee"){
+            addEmployee();
           }
           console.log(answers);
       });
@@ -120,3 +137,189 @@ FROM employee
         throw err;
     });
 }
+
+addDepartment = () => {
+    inquirer.prompt([
+      {
+        type: 'input', 
+        name: 'addDept',
+        message: "What department do you want to add?",
+        validate: addDept => {
+          if (addDept) {
+              return true;
+          } else {
+              console.log('Please enter a department');
+              return false;
+          }
+        }
+      }
+    ])
+      .then(answer => {
+        const sql = `INSERT INTO department (name)
+                    VALUES (?)`;
+        db.query(sql, answer.addDept, (err, result) => {
+          if (err) throw err;
+          console.log('Added ' + answer.addDept + " to departments!"); 
+  
+          showDepartments();
+      });
+    });
+  };
+
+  addRole = () => {
+    inquirer.prompt([
+      {
+        type: 'input', 
+        name: 'role',
+        message: "What role do you want to add?",
+        validate: role => {
+          if (role) {
+              return true;
+          } else {
+              console.log('Please enter a role');
+              return false;
+          }
+        }
+      }, 
+      {
+        type: 'input',
+        name: 'salary',
+        message: "Please add approriate salary for role",
+        validate: salary =>{
+            if(salary){
+                return true;
+            }else{
+                console.log("Please enter a salary")
+            }
+        }
+      },
+    ])
+    .then(answer => {
+        const params = [answer.role, answer.salary];
+
+      // grab dept from department table
+      const roleSql = `SELECT name, id FROM department`;
+
+      db.promise()
+        .query(roleSql)
+        .then(([rows, fields]) => {
+          const dept = rows.map(({ name, id }) => ({ name: name, value: id }));
+
+          return inquirer.prompt([
+            {
+              type: 'list',
+              name: 'dept',
+              message: 'What department is this role in?',
+              choices: dept,
+            },
+          ]);
+        })
+        .then((deptChoice) => {
+          const dept = deptChoice.dept;
+          params.push(dept);
+
+          const sql = `INSERT INTO role (title, salary, department_id)
+                      VALUES (?, ?, ?)`;
+
+          return db.promise().query(sql, params);
+        })
+        .then(([rows, fields]) => {
+          console.log('Added' + answer.role + ' to roles!');
+          viewRoles();
+        })
+        .catch((error) => {
+          console.error(error);
+        });
+    });
+};
+
+//When I choose to add an employee
+//THEN I am prompted to enter the employee’s first name, last name, role, 
+//and manager, and that employee is added to the database
+addEmployee=()=>{
+    inquirer.prompt([
+        {
+          type: 'input', 
+          name: 'first',
+          message: "Please add Employees first name?",
+          validate: first => {
+            if (first) {
+                return true;
+            } else {
+                console.log('Please enter a name');
+                return false;
+            }
+          }
+        }, 
+        {
+          type: 'input',
+          name: 'last',
+          message: "Please enter employees last name",
+          validate: last =>{
+              if(last){
+                  return true;
+              }else{
+                  console.log("Please enter employees last name")
+              }
+          }
+        }
+      ]).then(answer=>{
+        const params = [answer.name, answer.last];
+
+        const roleSql = `SELECT role.id, role.title FROM role`;
+
+
+        db.promise().query(roleSql)
+        .then(([rows, fields]) => {
+            const roles = rows.map(({ id, title }) => ({ name: title, value: id }));
+            inquirer.prompt([
+                {
+                    type: 'list',
+                    name: 'role',
+                    message: "What role is the employees role?",
+                    choices: roles
+                }
+            ])
+            .then(roleChoice=>{
+                const role=roleChoice.role;
+                params.push(role);
+    
+                const managerSql = `SELECT * FROM employee`;
+    
+                db.promise().query(managerSql)
+                .then(([rows,fields])=>{
+                    const managers = rows.map(({ id, first_name, last_name }) => ({ name: first_name + " "+ last_name, value: id }));
+                    inquirer.prompt([
+                        {
+                            type: 'list',
+                            name: 'manager',
+                            message: "Who is the employee's manager?",
+                            choices: managers
+                        }
+                    ])
+                    .then(managerChoice => {
+                        const manager = managerChoice.manager;
+                        params.push(manager);
+    
+                        const sql = `INSERT INTO employee (first_name, last_name, role_id, manager_id)
+                        VALUES (?, ?, ?, ?)`;
+    
+                        db.query(sql, params)
+                        .then(result => {
+                            console.log("Employee has been added!");
+                            showEmployees();
+                        })
+                        .catch(err => {
+                            throw err;
+                        });
+                    });
+                }).catch(err=>{
+                    throw err;
+                });
+            });
+        })
+        .catch((err) => {
+            throw err;
+        });
+      });
+    };
