@@ -61,8 +61,8 @@ let promptUser= function() {
           }
 
           if(Options === "View All Employees"){
+            console.log("this is working");
             viewEmployees();
-            console.log("this is working")
           }
 
           if(Options === "Add Department"){
